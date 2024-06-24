@@ -45,15 +45,23 @@ class DataSavedActivity : AppCompatActivity() {
 
     private fun loadEntries() {
         val dbHelper = DatabaseHelper(this)
-        val entries = dbHelper.getAllEntries()
-        println("Loaded ${entries.size} entries")
-        entries.forEachIndexed { index, entry ->
-            println("Entry $index: ${entry.userName}, ${entry.timestamp}, ${entry.items.size} items")
-            entry.items.forEach { (description, value) ->
-                println("  Item: $description - $value")
+        dbHelper.getAllEntries { entries, error ->
+            if (entries != null) {
+                // Now you can work with your entries list
+                println("Loaded ${entries.size} entries")
+                entries.forEachIndexed { index, entry ->
+                    println("Entry $index: ${entry.userName}, ${entry.timestamp}, ${entry.items.size} items")
+                    entry.items.forEach { (description, value) ->
+                        println("  Item: $description - $value")
+                    }
+                }
+                // Assuming 'adapter' is initialized somewhere in your Activity
+                adapter.updateEntries(entries)
+            } else if (error != null) {
+                // Handle the error appropriately
+                println("Error loading entries: $error")
             }
         }
-        adapter.updateEntries(entries)
     }
     inner class EntriesAdapter(private var entries: List<Entry>) :
         RecyclerView.Adapter<EntriesAdapter.EntryViewHolder>() {

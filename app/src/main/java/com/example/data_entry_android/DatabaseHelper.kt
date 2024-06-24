@@ -1,5 +1,59 @@
 package com.example.data_entry_android
 
+import android.content.Context
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import com.example.data_entry_android.model.Entry
+
+class DatabaseHelper(context: Context) {
+    // Instance of Retrofit API service
+    private val apiService = RetrofitClient.apiService
+
+    // Function to fetch all entries using Retrofit
+    fun getAllEntries(callback: (List<Entry>?, String?) -> Unit) {
+        apiService.getAllEntries().enqueue(object : Callback<List<Entry>> {
+            override fun onResponse(call: Call<List<Entry>>, response: Response<List<Entry>>) {
+                if (response.isSuccessful) {
+                    // Passing the fetched entries to the callback
+                    callback(response.body(), null)
+                } else {
+                    // Handling response error scenario
+                    callback(null, "Failed to retrieve entries: HTTP ${response.code()}")
+                }
+            }
+
+            override fun onFailure(call: Call<List<Entry>>, t: Throwable) {
+                // Handling failure in API call
+                callback(null, t.message)
+            }
+        })
+    }
+
+    // Optional: Method to insert an entry via the API if supported
+    fun insertEntry(entry: Entry, callback: (Boolean, String?) -> Unit) {
+        // Define this method in Retrofit interface if you need to post data to the server
+    }
+
+    // Commented out SQLite methods as they are no longer required
+    /*
+    override fun onCreate(db: SQLiteDatabase) { }
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) { }
+    fun insertEntry(entry: Entry) { }
+    private fun serializeItems(items: List<Pair<String, String>>): String { return "" }
+    private fun deserializeItems(serializedItems: String): List<Pair<String, String>> { return listOf() }
+    */
+}
+
+
+
+
+
+
+
+/*
+package com.example.data_entry_android
+
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
@@ -49,6 +103,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.close()
     }
 
+
+
+
+    /*
     fun getAllEntries(): List<Entry> {
         val entries = mutableListOf<Entry>()
         val db = this.readableDatabase
@@ -71,6 +129,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         return entries
     }
 
+     */
+
     private fun serializeItems(items: List<Pair<String, String>>): String {
         return gson.toJson(items)
     }
@@ -80,3 +140,5 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         return gson.fromJson(serializedItems, type)
     }
 }
+
+ */
