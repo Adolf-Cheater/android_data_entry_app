@@ -72,6 +72,9 @@ dependencies {
     //implementation ("com.github.yalantis:uCrop:2.2.8-native")
     implementation ("androidx.core:core-ktx:1.7.0")
     implementation ("androidx.appcompat:appcompat:1.4.1")
-    implementation ("org.apache.poi:poi-ooxml:5.2.3")
+    //implementation ("org.apache.poi:poi-ooxml:5.2.3")
+    implementation ("org.apache.poi:poi-ooxml:5.2.0")
+    implementation ("org.apache.poi:poi:5.2.0")
+    implementation ("com.github.CanHub:Android-Image-Cropper:4.3.0")
 
 }

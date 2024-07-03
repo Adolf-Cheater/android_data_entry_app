@@ -6,6 +6,14 @@
     android:padding="16dp">
 
     <Button
+        android:id="@+id/tableOcrButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toTopOf="@id/ocrButton"
+        app:layout_constraintStart_toStartOf="parent"
+        android:text="Table OCR" />
+
+    <Button
         android:id="@+id/takePictureButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -39,7 +47,7 @@
         android:id="@+id/ocrButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Perform OCR"
+        android:text="Regular OCR"
         app:layout_constraintBottom_toTopOf="@id/sliderSeekBar"
         app:layout_constraintStart_toStartOf="parent" />
 

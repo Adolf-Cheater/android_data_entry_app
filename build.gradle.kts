@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.android) apply false
 }
 
+
+/*
 buildscript {
     repositories {
         google()
@@ -11,3 +13,4 @@ buildscript {
         maven { url  = uri("https://jitpack.io") }
     }
 }
+ */

@@ -1,5 +1,6 @@
 package com.example.data_entry_android
 
+import OCRExcelExporter
 import android.graphics.*
 import android.net.Uri
 import android.os.Bundle
@@ -77,6 +78,31 @@ class OCRResultActivity : AppCompatActivity() {
         }
         binding.generateDocxButton.setOnClickListener {
             generateDocxFile()
+        }
+        binding.generateExcelButton.setOnClickListener {
+            generateExcelFile()
+        }
+    }
+
+
+    private fun generateExcelFile() {
+        val ocrResponse = intent.getStringExtra("OCR_RESPONSE")
+        if (ocrResponse == null) {
+            Toast.makeText(this, "Error: Missing OCR data", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        try {
+            val exporter = OCRExcelExporter()
+            val fileName = "OCR_Result_${System.currentTimeMillis()}.xlsx"
+            val file = File(getExternalFilesDir(null), fileName)
+
+            exporter.exportToExcel(ocrResponse, file.absolutePath)
+
+            Toast.makeText(this, "Excel file generated: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e("OCRResultActivity", "Error generating Excel file", e)
+            Toast.makeText(this, "Failed to generate Excel file: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
