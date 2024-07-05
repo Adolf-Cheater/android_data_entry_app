@@ -3,7 +3,9 @@ package com.example.data_entry_android
 
 import android.content.Context
 import android.graphics.*
+import android.os.Build
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 
@@ -12,6 +14,7 @@ class CropView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
 ) : View(context, attrs, defStyleAttr) {
+
 
     private var bitmap: Bitmap? = null
     private val paint = Paint()
@@ -27,8 +30,58 @@ class CropView @JvmOverloads constructor(
         invalidate()
     }
 
+    fun updateGestureExclusion() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val exclusionRects = mutableListOf<Rect>()
+            val handleSize = 100 // Adjust based on your actual handle size
+
+            // Left edge
+            exclusionRects.add(Rect(cropRect.left.toInt() - handleSize, cropRect.top.toInt() - handleSize,
+                cropRect.left.toInt() + handleSize, cropRect.bottom.toInt() + handleSize))
+            // Right edge
+            exclusionRects.add(Rect(cropRect.right.toInt() - handleSize, cropRect.top.toInt() - handleSize,
+                cropRect.right.toInt() + handleSize, cropRect.bottom.toInt() + handleSize))
+            // Top edge
+            exclusionRects.add(Rect(cropRect.left.toInt() - handleSize, cropRect.top.toInt() - handleSize,
+                cropRect.right.toInt() + handleSize, cropRect.top.toInt() + handleSize))
+            // Bottom edge
+            exclusionRects.add(Rect(cropRect.left.toInt() - handleSize, cropRect.bottom.toInt() - handleSize,
+                cropRect.right.toInt() + handleSize, cropRect.bottom.toInt() + handleSize))
+
+            systemGestureExclusionRects = exclusionRects
+        }
+    }
+
+    private fun initializeCropRect() {
+        val padding = 50f // Adjust this value to control how far from the edges the crop rect starts
+        val initialWidth = (width * 0.8f).coerceAtMost(height * 0.8f) // 80% of the smaller dimension
+        val initialHeight = initialWidth // For a square crop, or adjust as needed
+
+        val left = (width - initialWidth) / 2
+        val top = (height - initialHeight) / 2
+        val right = left + initialWidth
+        val bottom = top + initialHeight
+
+        cropRect.set(
+            left.coerceIn(padding, width - padding),
+            top.coerceIn(padding, height - padding),
+            right.coerceIn(padding, width - padding),
+            bottom.coerceIn(padding, height - padding)
+        )
+    }
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        initializeCropRect()
+    }
+
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        if (width <= 0 || height <= 0) {
+            Log.e("CropView", "Invalid view dimensions: ${width}x${height}")
+            return
+        }
         bitmap?.let { bmp ->
             canvas.drawBitmap(bmp, null, RectF(0f, 0f, width.toFloat(), height.toFloat()), paint)
         }
@@ -89,24 +142,33 @@ class CropView @JvmOverloads constructor(
     }
 
     private fun updateCropRect(corner: Int, x: Float, y: Float) {
+        Log.d("CropView", "Updating crop rect: corner=$corner, x=$x, y=$y")
+        Log.d("CropView", "Current cropRect: $cropRect")
+        Log.d("CropView", "View dimensions: ${width}x${height}")
+        val viewWidth = width.toFloat().coerceAtLeast(1f)
+        val viewHeight = height.toFloat().coerceAtLeast(1f)
+
         when (corner) {
             0 -> { // Top-left
-                cropRect.left = x.coerceIn(0f, cropRect.right - minCropSize)
-                cropRect.top = y.coerceIn(0f, cropRect.bottom - minCropSize)
+                cropRect.left = x.coerceIn(0f, (cropRect.right - minCropSize).coerceAtLeast(0f))
+                cropRect.top = y.coerceIn(0f, (cropRect.bottom - minCropSize).coerceAtLeast(0f))
             }
             1 -> { // Top-right
-                cropRect.right = x.coerceIn(cropRect.left + minCropSize, width.toFloat())
-                cropRect.top = y.coerceIn(0f, cropRect.bottom - minCropSize)
+                cropRect.right = x.coerceIn((cropRect.left + minCropSize).coerceAtMost(viewWidth), viewWidth)
+                cropRect.top = y.coerceIn(0f, (cropRect.bottom - minCropSize).coerceAtLeast(0f))
             }
             2 -> { // Bottom-left
-                cropRect.left = x.coerceIn(0f, cropRect.right - minCropSize)
-                cropRect.bottom = y.coerceIn(cropRect.top + minCropSize, height.toFloat())
+                cropRect.left = x.coerceIn(0f, (cropRect.right - minCropSize).coerceAtLeast(0f))
+                cropRect.bottom = y.coerceIn((cropRect.top + minCropSize).coerceAtMost(viewHeight), viewHeight)
             }
             3 -> { // Bottom-right
-                cropRect.right = x.coerceIn(cropRect.left + minCropSize, width.toFloat())
-                cropRect.bottom = y.coerceIn(cropRect.top + minCropSize, height.toFloat())
+                cropRect.right = x.coerceIn((cropRect.left + minCropSize).coerceAtMost(viewWidth), viewWidth)
+                cropRect.bottom = y.coerceIn((cropRect.top + minCropSize).coerceAtMost(viewHeight), viewHeight)
             }
         }
+        Log.d("CropView", "Updated cropRect: $cropRect")
+        updateGestureExclusion()
+        invalidate()
     }
 
     fun getCroppedBitmap(): Bitmap? {
@@ -127,4 +189,5 @@ class CropView @JvmOverloads constructor(
         }
         return null
     }
+
 }

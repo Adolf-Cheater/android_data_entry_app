@@ -1,5 +1,6 @@
 package com.example.data_entry_android
 
+
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -45,8 +46,14 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
+import android.graphics.Rect
 import android.os.Build
+import android.view.View
 import android.widget.CheckBox
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
@@ -62,7 +69,7 @@ import java.text.SimpleDateFormat
 class MainActivity<IOException : Any> : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var cropView: CropView
+
     private var selectedImageUri: Uri? = null
     private lateinit var currentPhotoPath: String
 
@@ -78,6 +85,14 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+
+        binding.saveCropButton.setOnClickListener {
+            saveCroppedImage()
+        }
+
+        binding.cancelCropButton.setOnClickListener {
+            cancelCropping()
+        }
         binding.selectImageButton.setOnClickListener {
             pickImage.launch("image/*")
         }
@@ -117,6 +132,7 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
             }
         }
 
+
         /*
         binding.ocrButton.setOnClickListener {
             performOCR()
@@ -139,6 +155,59 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
         })
     }
 
+
+
+
+    private fun setupGestureExclusion() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            binding.cropView.setOnApplyWindowInsetsListener { v, insets ->
+                val displayCutout = insets.displayCutout
+                if (displayCutout != null) {
+                    val exclusionRects = mutableListOf<android.graphics.Rect>()
+
+                    // Left edge
+                    exclusionRects.add(android.graphics.Rect(0, 0, 100, v.height))
+                    // Right edge
+                    exclusionRects.add(android.graphics.Rect(v.width - 100, 0, v.width, v.height))
+                    // Top edge
+                    exclusionRects.add(android.graphics.Rect(0, 0, v.width, 100))
+                    // Bottom edge
+                    exclusionRects.add(android.graphics.Rect(0, v.height - 100, v.width, v.height))
+
+                    v.systemGestureExclusionRects = exclusionRects
+                }
+                insets
+            }
+        }
+    }
+
+    private fun cropImageWithAndroid(sourceUri: Uri) {
+        val destinationUri = FileProvider.getUriForFile(
+            this,
+            "${packageName}.fileprovider",
+            File(cacheDir, "cropped_${System.currentTimeMillis()}.jpg")
+        )
+
+        val cropIntent = Intent("com.android.camera.action.CROP").apply {
+            setDataAndType(sourceUri, "image/*")
+            putExtra("crop", "true")
+            putExtra("aspectX", 1)
+            putExtra("aspectY", 1)
+            putExtra("outputX", 300)
+            putExtra("outputY", 300)
+            putExtra("scale", true)
+            putExtra(MediaStore.EXTRA_OUTPUT, destinationUri)
+            putExtra("return-data", false)
+            putExtra("outputFormat", Bitmap.CompressFormat.JPEG.toString())
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+
+        grantUriPermission(cropIntent.resolveActivity(packageManager).packageName, sourceUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        grantUriPermission(cropIntent.resolveActivity(packageManager).packageName, destinationUri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+        startActivityForResult(cropIntent, CROP_REQUEST_CODE)
+    }
 
     private fun checkCameraPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
@@ -176,19 +245,68 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
             }
         }
     }
+
+
+
+    private fun showCustomCropView(imageUri: Uri) {
+        val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, imageUri)
+        binding.cropView.setBitmap(bitmap)
+        binding.cropLayout.setVisibility(android.view.View.VISIBLE)
+        binding.mainLayout.setVisibility(android.view.View.GONE)
+        setupGestureExclusion()
+    }
+
+    private fun showCropMethodDialog(imageUri: Uri) {
+        AlertDialog.Builder(this)
+            .setTitle("Choose Cropping Method")
+            .setMessage("Which cropping method would you like to use?")
+            .setPositiveButton("Built-in Android") { _, _ ->
+                cropImageWithAndroid(imageUri)
+            }
+            .setNegativeButton("Custom Crop") { _, _ ->
+                showCustomCropView(imageUri)
+            }
+            .show()
+    }
+    private fun saveCroppedImage() {
+        val croppedBitmap = binding.cropView.getCroppedBitmap()
+        croppedBitmap?.let { bitmap ->
+            val file = File(cacheDir, "cropped_${System.currentTimeMillis()}.jpg")
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
+            }
+            selectedImageUri = Uri.fromFile(file)
+            binding.selectedImageView.setImageURI(selectedImageUri)
+            binding.selectedImageView.setImageBitmap(bitmap)
+            hideCropView()
+        }
+    }
+
+    private fun cancelCropping() {
+        hideCropView()
+    }
+
+    private fun hideCropView() {
+        binding.cropLayout.setVisibility(android.view.View.GONE)
+        binding.mainLayout.setVisibility(android.view.View.VISIBLE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            binding.cropView.systemGestureExclusionRects = emptyList()
+        }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         Log.d("MainActivity", "onActivityResult: requestCode=$requestCode, resultCode=$resultCode")
         if (resultCode == Activity.RESULT_OK) {
             when (requestCode) {
                 IMAGE_CAPTURE_CODE -> {
-                    Log.d("MainActivity", "Image captured, starting crop")
+                    Log.d("MainActivity", "Image captured, showing crop method dialog")
                     val imageUri = FileProvider.getUriForFile(
                         this,
                         "${packageName}.fileprovider",
                         File(currentPhotoPath)
                     )
-                    cropImage(imageUri)
+                    showCropMethodDialog(imageUri)
                 }
                 CROP_REQUEST_CODE -> {
                     Log.d("MainActivity", "Crop completed, handling result")
@@ -362,59 +480,80 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
     }
 
     private fun performTableOCR(imageUri: Uri, dirAssure: Boolean, lineLess: Boolean) {
-        val base64Image = getBase64FromUri(imageUri)
 
-        val client = OkHttpClient.Builder()
-            .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
-            })
-            .build()
+        Log.d("MainActivity", "Performing OCR on image: $imageUri")
+        val intent = Intent(this, ProcessingActivity::class.java)
+        startActivity(intent)
+        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
 
-        val retrofit = Retrofit.Builder()
-            .baseUrl("https://form.market.alicloudapi.com/")
-            .client(client)
-            .addConverterFactory(MoshiConverterFactory.create())
-            .build()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val base64Image = getBase64FromUri(imageUri)
 
-        val service = retrofit.create(TableOCRInterface::class.java)
+                val client = OkHttpClient.Builder()
+                    .addInterceptor(HttpLoggingInterceptor().apply {
+                        level = HttpLoggingInterceptor.Level.BODY
+                    })
+                    .build()
 
-        val params = JSONObject().apply {
-            put("image", base64Image)
-            put("configure", JSONObject().apply {
-                put("format", "xlsx")
-                put("dir_assure", dirAssure.toString())
-                put("line_less", (!lineLess).toString()) // Inverting because the checkbox text is opposite to the API parameter meaning
-            })
-        }
+                val retrofit = Retrofit.Builder()
+                    .baseUrl("https://form.market.alicloudapi.com/")
+                    .client(client)
+                    .addConverterFactory(MoshiConverterFactory.create())
+                    .build()
 
-        val requestBody = params.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                val service = retrofit.create(TableOCRInterface::class.java)
 
-        val authorization = "APPCODE $TABLE_OCR_APPCODE"
+                val params = JSONObject().apply {
+                    put("image", base64Image)
+                    put("configure", JSONObject().apply {
+                        put("format", "xlsx")
+                        put("dir_assure", dirAssure.toString())
+                        put("line_less", (!lineLess).toString())
+                    })
+                }
 
-        val call = service.getTableOCRResults(authorization, requestBody)
+                val requestBody = params.toString().toRequestBody("application/json".toMediaTypeOrNull())
+                val authorization = "APPCODE $TABLE_OCR_APPCODE"
 
-        call.enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(call: Call<ResponseBody>, response: Response<ResponseBody>) {
-                if (response.isSuccessful) {
-                    val responseBody = response.body()
-                    responseBody?.let {
-                        val jsonResponse = JSONObject(it.string())
-                        if (jsonResponse.has("tables")) {
-                            val base64Excel = jsonResponse.getString("tables")
-                            saveExcelFile(base64Excel)
-                        } else {
-                            Toast.makeText(this@MainActivity, "Unexpected response format", Toast.LENGTH_LONG).show()
+                val response = service.getTableOCRResults(authorization, requestBody)
+
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        val responseBody = response.body()
+                        responseBody?.let {
+                            val jsonResponse = JSONObject(it.charStream().readText())
+                            if (jsonResponse.has("tables")) {
+                                val base64Excel = jsonResponse.getString("tables")
+
+                                // Start TableOCRCompletionActivity
+                                val intent = Intent(this@MainActivity, TableOCRCompletionActivity::class.java)
+                                intent.putExtra("IMAGE_URI", imageUri.toString())
+                                intent.putExtra("OCR_RESPONSE", base64Excel)
+                                startActivity(intent)
+                            } else {
+                                showErrorAndReturnToMain("Unexpected response format")
+                            }
                         }
+                    } else {
+                        showErrorAndReturnToMain("Table OCR request failed")
                     }
-                } else {
-                    Toast.makeText(this@MainActivity, "Table OCR request failed", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    showErrorAndReturnToMain("Network error: ${e.message}")
                 }
             }
+        }
+    }
 
-            override fun onFailure(call: Call<ResponseBody>, t: Throwable) {
-                Toast.makeText(this@MainActivity, "Network error: ${t.message}", Toast.LENGTH_LONG).show()
-            }
-        })
+    private fun showErrorAndReturnToMain(message: String) {
+        Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+        // Return to MainActivity
+        val intent = Intent(this@MainActivity, MainActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
+        overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
     }
 
     private fun saveExcelFile(base64Excel: String) {
@@ -447,81 +586,100 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
 
     interface TableOCRInterface {
         @POST("api/predict/ocr_table_parse")
-        fun getTableOCRResults(
+        suspend fun getTableOCRResults(
             @Header("Authorization") authorization: String,
             @Body requestBody: RequestBody
-        ): Call<ResponseBody>
+        ): Response<ResponseBody>
     }
 
     private fun performOCR(imageUri: Uri) {
         Log.d("MainActivity", "Performing OCR on image: $imageUri")
-        val base64Image = getBase64FromUri(imageUri)
-        //val base64Image = getBase64FromResourceImage(R.drawable.test2)
 
+        // Start ProcessingActivity
+        val processingIntent = Intent(this, ProcessingActivity::class.java)
+        processingIntent.putExtra("IMAGE_URI", imageUri.toString())
+        startActivity(processingIntent)
+        overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
 
-        val client = OkHttpClient.Builder()
-            .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
-            })
-            .build()
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val base64Image = getBase64FromUri(imageUri)
 
-        val moshi = Moshi.Builder()
-            .add(KotlinJsonAdapterFactory())
-            .build()
+                val client = OkHttpClient.Builder()
+                    .addInterceptor(HttpLoggingInterceptor().apply {
+                        level = HttpLoggingInterceptor.Level.BODY
+                    })
+                    .build()
 
-        val retrofit = Retrofit.Builder()
-            .baseUrl("https://gjbsb.market.alicloudapi.com/")
-            .client(client)
-            .addConverterFactory(MoshiConverterFactory.create(moshi))
-            .build()
+                val moshi = Moshi.Builder()
+                    .add(KotlinJsonAdapterFactory())
+                    .build()
 
-        val service = retrofit.create(OCRInterface::class.java)
+                val retrofit = Retrofit.Builder()
+                    .baseUrl("https://gjbsb.market.alicloudapi.com/")
+                    .client(client)
+                    .addConverterFactory(MoshiConverterFactory.create(moshi))
+                    .build()
 
+                val service = retrofit.create(OCRInterface::class.java)
 
-        val params = JSONObject().apply {
-            put("img", base64Image)
-            put("prob", false)
-            put("charInfo", false)
-            put("rotate", false)
-            put("table", true)
-            put("sortPage", true)
-            put("noStamp", false)
-            put("figure", false)
-            put("row", true)
-            put("paragraph", false)
-            put("oricoord", true)
-        }
+                val params = JSONObject().apply {
+                    put("img", base64Image)
+                    put("prob", false)
+                    put("charInfo", false)
+                    put("rotate", false)
+                    put("table", true)
+                    put("sortPage", true)
+                    put("noStamp", false)
+                    put("figure", false)
+                    put("row", true)
+                    put("paragraph", false)
+                    put("oricoord", true)
+                }
 
-        val requestBody = params.toString().toRequestBody("application/json".toMediaType())
+                val requestBody = params.toString().toRequestBody("application/json".toMediaType())
 
-        val appcode = "c98f40b96d014578b8f793970e8a002c"
-        val authorization = "APPCODE $appcode"
+                val appcode = "c98f40b96d014578b8f793970e8a002c"
+                val authorization = "APPCODE $appcode"
 
-        val call = service.getOCRResults(authorization, requestBody)
+                val response = service.getOCRResults(authorization, requestBody)
 
-        call.enqueue(object : Callback<OCRResponse> {
-            override fun onResponse(call: Call<OCRResponse>, response: Response<OCRResponse>) {
-                if (response.isSuccessful) {
-                    val ocrResponse = response.body()
-                    ocrResponse?.let {
-                        Log.d("MainActivity", "Sending image to OCRResultActivity: $imageUri")
-                        val intent = Intent(this@MainActivity, OCRResultActivity::class.java).apply {
-                            putExtra("IMAGE_URI", imageUri.toString())
-                            putExtra("OCR_RESPONSE", Gson().toJson(it))
+                withContext(Dispatchers.Main) {
+                    if (response.isSuccessful) {
+                        val ocrResponse = response.body()
+                        ocrResponse?.let {
+                            Log.d("MainActivity", "OCR successful, starting CompletionActivity")
+                            val completionIntent = Intent(this@MainActivity, CompletionActivity::class.java).apply {
+                                putExtra("IMAGE_URI", imageUri.toString())
+                                putExtra("OCR_RESPONSE", Gson().toJson(it))
+                            }
+                            Log.d("MainActivity", "Sending IMAGE_URI: ${imageUri.toString()}")
+                            Log.d("MainActivity", "Sending OCR_RESPONSE: ${Gson().toJson(it)}")
+                            startActivity(completionIntent)
+                            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
+                        } ?: run {
+                            showErrorAndReturnToMain("OCR response is null")
                         }
-                        startActivity(intent)
+                    } else {
+                        showErrorAndReturnToMain("OCR request failed: ${response.errorBody()?.string()}")
                     }
-                } else {
-                    // Handle error
-                    Toast.makeText(this@MainActivity, "OCR request failed", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    showErrorAndReturnToMain("Network error: ${e.message}")
                 }
             }
+        }
+    }
 
-            override fun onFailure(call: Call<OCRResponse>, t: Throwable) {
-                // Handle failure
-                Toast.makeText(this@MainActivity, "Network error: ${t.message}", Toast.LENGTH_LONG).show()
-            }
-        })
+    // Update OCRInterface to use suspend function
+    interface OCRInterface {
+        @Headers("Content-Type: application/json")
+        @POST("ocrservice/advanced")
+        suspend fun getOCRResults(
+            @Header("Authorization") authorization: String,
+            @Body requestBody: RequestBody
+        ): Response<OCRResponse>
     }
     @OptIn(ExperimentalEncodingApi::class)
 

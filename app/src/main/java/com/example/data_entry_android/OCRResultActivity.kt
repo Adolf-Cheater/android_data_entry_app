@@ -17,14 +17,12 @@ import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 import java.io.OutputStream
 import android.Manifest
 import android.graphics.Bitmap
 import androidx.activity.result.contract.ActivityResultContracts
 import org.apache.poi.xwpf.usermodel.XWPFDocument
 import org.apache.poi.xwpf.usermodel.ParagraphAlignment
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblWidth
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STBorder
 import java.math.BigInteger
 
@@ -52,7 +50,8 @@ class OCRResultActivity : AppCompatActivity() {
         val imageUriString = intent.getStringExtra("IMAGE_URI")
         val ocrResponse = intent.getStringExtra("OCR_RESPONSE")
 
-        Log.d("OCRResultActivity", "Received image URI: $imageUriString")
+        Log.d("OCRResultActivity", "Received IMAGE_URI: $imageUriString")
+        Log.d("OCRResultActivity", "Received OCR_RESPONSE: $ocrResponse")
 
         if (imageUriString == null || ocrResponse == null) {
             Toast.makeText(this, "Error: Missing image or OCR data", Toast.LENGTH_LONG).show()
@@ -70,143 +69,24 @@ class OCRResultActivity : AppCompatActivity() {
             Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             finish()
         }
+
         binding.saveImageButton.setOnClickListener {
             checkPermissionAndSaveImage()
         }
+
+        binding.generateExcelButton.setOnClickListener {
+            generateExcelFile(ocrResponse)
+        }
+
+        binding.generateDocxButton.setOnClickListener {
+            generateDocxFile(ocrResponse)
+        }
+
         binding.backButton.setOnClickListener {
             finish()
         }
-        binding.generateDocxButton.setOnClickListener {
-            generateDocxFile()
-        }
-        binding.generateExcelButton.setOnClickListener {
-            generateExcelFile()
-        }
     }
 
-
-    private fun generateExcelFile() {
-        val ocrResponse = intent.getStringExtra("OCR_RESPONSE")
-        if (ocrResponse == null) {
-            Toast.makeText(this, "Error: Missing OCR data", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        try {
-            val exporter = OCRExcelExporter()
-            val fileName = "OCR_Result_${System.currentTimeMillis()}.xlsx"
-            val file = File(getExternalFilesDir(null), fileName)
-
-            exporter.exportToExcel(ocrResponse, file.absolutePath)
-
-            Toast.makeText(this, "Excel file generated: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Log.e("OCRResultActivity", "Error generating Excel file", e)
-            Toast.makeText(this, "Failed to generate Excel file: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun generateDocxFile() {
-        val ocrResponse = intent.getStringExtra("OCR_RESPONSE")
-        if (ocrResponse == null) {
-            Toast.makeText(this, "Error: Missing OCR data", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val ocrData = parseOCRResponse(ocrResponse)
-
-        try {
-            val document = XWPFDocument()
-
-            // Create a table to represent the image
-            val table = document.createTable(100, 100) // Adjust these numbers based on desired granularity
-
-            // Set minimal cell margins
-            val tableCellProperties = table.ctTbl.tblPr.addNewTblCellMar()
-            tableCellProperties.addNewTop().w = BigInteger.ZERO
-            tableCellProperties.addNewBottom().w = BigInteger.ZERO
-            tableCellProperties.addNewLeft().w = BigInteger.ZERO
-            tableCellProperties.addNewRight().w = BigInteger.ZERO
-
-            // Remove borders
-            val borders = table.ctTbl.tblPr.addNewTblBorders()
-            borders.addNewTop().setVal(STBorder.NONE)
-            borders.addNewBottom().setVal(STBorder.NONE)
-            borders.addNewLeft().setVal(STBorder.NONE)
-            borders.addNewRight().setVal(STBorder.NONE)
-            borders.addNewInsideH().setVal(STBorder.NONE)
-            borders.addNewInsideV().setVal(STBorder.NONE)
-
-            // Calculate scaling factors
-            val maxX = ocrData.maxOf { it.boundingBox.right }
-            val maxY = ocrData.maxOf { it.boundingBox.bottom }
-            val scaleX = 100.0 / maxX
-            val scaleY = 100.0 / maxY
-
-            ocrData.forEach { item ->
-                val startRow = (item.boundingBox.top * scaleY).toInt()
-                val startCol = (item.boundingBox.left * scaleX).toInt()
-                val endRow = (item.boundingBox.bottom * scaleY).toInt()
-                val endCol = (item.boundingBox.right * scaleX).toInt()
-
-                for (row in startRow..endRow) {
-                    for (col in startCol..endCol) {
-                        if (row < 100 && col < 100) {  // Ensure we're within table bounds
-                            val cell = table.getRow(row).getCell(col)
-                            cell.text = item.word
-                            cell.paragraphs[0].alignment = ParagraphAlignment.CENTER
-
-                            // Set font size (adjust as needed)
-                            val run = cell.paragraphs[0].createRun()
-                            run.fontSize = 8
-                        }
-                    }
-                }
-            }
-
-            // Save the document
-            val fileName = "OCR_Result_${System.currentTimeMillis()}.docx"
-            val file = File(getExternalFilesDir(null), fileName)
-            FileOutputStream(file).use { out ->
-                document.write(out)
-            }
-
-            Toast.makeText(this, "Docx file generated: ${file.absolutePath}", Toast.LENGTH_LONG).show()
-        } catch (e: Exception) {
-            Log.e("OCRResultActivity", "Error generating docx file", e)
-            Toast.makeText(this, "Failed to generate docx file: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun checkPermissionAndSaveImage() {
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
-                // Android 10 and above
-                saveImage()
-            }
-
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-                // Android 6.0 to Android 9.0
-                when {
-                    ContextCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE
-                    ) == PackageManager.PERMISSION_GRANTED -> {
-                        saveImage()
-                    }
-
-                    else -> {
-                        requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    }
-                }
-            }
-
-            else -> {
-                // Below Android 6.0
-                saveImage()
-            }
-        }
-    }
 
     private fun displayOriginalImage(imageUri: Uri) {
         Log.d("OCRResultActivity", "Displaying original image: $imageUri")
@@ -322,6 +202,129 @@ class OCRResultActivity : AppCompatActivity() {
         }
 
         return ocrItems
+    }
+
+    private fun generateExcelFile(ocrResponse: String) {
+        val ocrResponse = intent.getStringExtra("OCR_RESPONSE")
+        if (ocrResponse == null) {
+            Toast.makeText(this, "Error: Missing OCR data", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        try {
+            val exporter = OCRExcelExporter()
+            val fileName = "OCR_Result_${System.currentTimeMillis()}.xlsx"
+            val file = File(getExternalFilesDir(null), fileName)
+
+            exporter.exportToExcel(ocrResponse, file.absolutePath)
+
+            Toast.makeText(this, "Excel file generated: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e("OCRResultActivity", "Error generating Excel file", e)
+            Toast.makeText(this, "Failed to generate Excel file: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun generateDocxFile(ocrResponse: String) {
+        val ocrResponse = intent.getStringExtra("OCR_RESPONSE")
+        if (ocrResponse == null) {
+            Toast.makeText(this, "Error: Missing OCR data", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val ocrData = parseOCRResponse(ocrResponse)
+
+        try {
+            val document = XWPFDocument()
+
+            // Create a table to represent the image
+            val table = document.createTable(100, 100) // Adjust these numbers based on desired granularity
+
+            // Set minimal cell margins
+            val tableCellProperties = table.ctTbl.tblPr.addNewTblCellMar()
+            tableCellProperties.addNewTop().w = BigInteger.ZERO
+            tableCellProperties.addNewBottom().w = BigInteger.ZERO
+            tableCellProperties.addNewLeft().w = BigInteger.ZERO
+            tableCellProperties.addNewRight().w = BigInteger.ZERO
+
+            // Remove borders
+            val borders = table.ctTbl.tblPr.addNewTblBorders()
+            borders.addNewTop().setVal(STBorder.NONE)
+            borders.addNewBottom().setVal(STBorder.NONE)
+            borders.addNewLeft().setVal(STBorder.NONE)
+            borders.addNewRight().setVal(STBorder.NONE)
+            borders.addNewInsideH().setVal(STBorder.NONE)
+            borders.addNewInsideV().setVal(STBorder.NONE)
+
+            // Calculate scaling factors
+            val maxX = ocrData.maxOf { it.boundingBox.right }
+            val maxY = ocrData.maxOf { it.boundingBox.bottom }
+            val scaleX = 100.0 / maxX
+            val scaleY = 100.0 / maxY
+
+            ocrData.forEach { item ->
+                val startRow = (item.boundingBox.top * scaleY).toInt()
+                val startCol = (item.boundingBox.left * scaleX).toInt()
+                val endRow = (item.boundingBox.bottom * scaleY).toInt()
+                val endCol = (item.boundingBox.right * scaleX).toInt()
+
+                for (row in startRow..endRow) {
+                    for (col in startCol..endCol) {
+                        if (row < 100 && col < 100) {  // Ensure we're within table bounds
+                            val cell = table.getRow(row).getCell(col)
+                            cell.text = item.word
+                            cell.paragraphs[0].alignment = ParagraphAlignment.CENTER
+
+                            // Set font size (adjust as needed)
+                            val run = cell.paragraphs[0].createRun()
+                            run.fontSize = 8
+                        }
+                    }
+                }
+            }
+
+            // Save the document
+            val fileName = "OCR_Result_${System.currentTimeMillis()}.docx"
+            val file = File(getExternalFilesDir(null), fileName)
+            FileOutputStream(file).use { out ->
+                document.write(out)
+            }
+
+            Toast.makeText(this, "Docx file generated: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        } catch (e: Exception) {
+            Log.e("OCRResultActivity", "Error generating docx file", e)
+            Toast.makeText(this, "Failed to generate docx file: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun checkPermissionAndSaveImage() {
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                // Android 10 and above
+                saveImage()
+            }
+
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
+                // Android 6.0 to Android 9.0
+                when {
+                    ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    ) == PackageManager.PERMISSION_GRANTED -> {
+                        saveImage()
+                    }
+
+                    else -> {
+                        requestPermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    }
+                }
+            }
+
+            else -> {
+                // Below Android 6.0
+                saveImage()
+            }
+        }
     }
 
     data class OCRItem(val word: String, val boundingBox: RectF)
