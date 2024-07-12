@@ -10,21 +10,18 @@
         android:layout_height="match_parent"
         android:padding="16dp">
 
-        <Button
-            android:id="@+id/tableOcrButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:layout_constraintBottom_toTopOf="@id/ocrButton"
-            app:layout_constraintStart_toStartOf="parent"
-            android:text="Table OCR" />
-
-        <Button
-            android:id="@+id/takePictureButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Take Picture"
-            app:layout_constraintTop_toBottomOf="@id/selectImageButton"
+        <com.example.data_entry_android.SlideToActionView
+            android:id="@+id/slideToActionView"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent" />
+
+
 
         <Button
             android:id="@+id/selectImageButton"
@@ -33,6 +30,14 @@
             android:text="Select Image"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent" />
+
+        <Button
+            android:id="@+id/takePictureButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Take Picture"
+            app:layout_constraintTop_toTopOf="@id/selectImageButton"
+            app:layout_constraintStart_toEndOf="@id/selectImageButton" />
 
         <ImageView
             android:id="@+id/selectedImageView"
@@ -47,31 +52,24 @@
             app:layout_constraintEnd_toEndOf="parent" />
 
         <Button
+            android:id="@+id/tableOcrButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Table OCR"
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            app:layout_constraintBottom_toTopOf="@id/slideToActionView"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <Button
             android:id="@+id/ocrButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Regular OCR"
-            app:layout_constraintBottom_toTopOf="@id/sliderSeekBar"
-            app:layout_constraintStart_toStartOf="parent" />
-
-        <SeekBar
-            android:id="@+id/sliderSeekBar"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:layout_constraintBottom_toTopOf="@id/slideInstructionText"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-        <TextView
-            android:id="@+id/slideInstructionText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Slide to get started"
-            android:layout_marginTop="8dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            android:layout_marginStart="16dp"
+            android:layout_marginBottom="16dp"
+            app:layout_constraintBottom_toTopOf="@id/slideToActionView"
+            app:layout_constraintStart_toEndOf="@id/tableOcrButton" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -89,6 +87,8 @@
             app:layout_constraintBottom_toTopOf="@id/saveCropButton"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
+
+
 
         <Button
             android:id="@+id/saveCropButton"

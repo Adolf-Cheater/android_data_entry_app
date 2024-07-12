@@ -23,6 +23,8 @@ class DatabaseHelper(context: Context) {
                 }
             }
 
+
+
             override fun onFailure(call: Call<List<Entry>>, t: Throwable) {
                 // Handling failure in API call
                 callback(null, t.message)

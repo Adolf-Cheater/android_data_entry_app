@@ -10,9 +10,6 @@ import android.os.Bundle
 import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.bumptech.glide.Glide
-import com.bumptech.glide.request.target.CustomTarget
-import com.bumptech.glide.request.transition.Transition
 import com.example.data_entry_android.databinding.ActivityMainBinding
 import com.google.gson.Gson
 import okhttp3.OkHttpClient
@@ -23,11 +20,9 @@ import retrofit2.http.Body
 import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.Call
-import retrofit2.Callback
 import retrofit2.Response
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
-import kotlinx.coroutines.CoroutineStart
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
@@ -46,9 +41,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.ContentValues
-import android.graphics.Rect
 import android.os.Build
-import android.view.View
 import android.widget.CheckBox
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +56,14 @@ import java.io.FileOutputStream
 import java.util.*
 import java.text.SimpleDateFormat
 
+// Only use for future implmentations
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
+import android.graphics.Rect
+import android.view.View
+import kotlinx.coroutines.CoroutineStart
+import retrofit2.Callback
 
 
 
@@ -77,6 +78,10 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
     private val IMAGE_CAPTURE_CODE = 1001
     private val CROP_REQUEST_CODE = 1002
 
+
+    /*#####################################
+    API URL ENTRY AREA - SUBJECT TO CHANGE
+    ######################################*/
     private val TABLE_OCR_URL = "https://form.market.alicloudapi.com/api/predict/ocr_table_parse"
     private val TABLE_OCR_APPCODE = "c98f40b96d014578b8f793970e8a002c"
 
@@ -84,7 +89,6 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
 
         binding.saveCropButton.setOnClickListener {
             saveCroppedImage()
@@ -113,9 +117,6 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
             }
         }
 
-
-
-
         binding.ocrButton.setOnClickListener {
             selectedImageUri?.let { uri ->
                 performOCR(uri)
@@ -132,13 +133,21 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
             }
         }
 
+        binding.slideToActionView.setSlideListener {
+            // This is called when the slider is fully slid
+            val intent = Intent(this, ContentActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
 
+        //regular OCR button - do not use for now
         /*
         binding.ocrButton.setOnClickListener {
             performOCR()
         }
         */
 
+        /*
         binding.sliderSeekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 val maxProgress = seekBar?.max ?: 100
@@ -153,10 +162,9 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
             override fun onStartTrackingTouch(seekBar: SeekBar?) {}
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
+
+         */
     }
-
-
-
 
     private fun setupGestureExclusion() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -246,8 +254,6 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
         }
     }
 
-
-
     private fun showCustomCropView(imageUri: Uri) {
         val bitmap = MediaStore.Images.Media.getBitmap(contentResolver, imageUri)
         binding.cropView.setBitmap(bitmap)
@@ -268,6 +274,7 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
             }
             .show()
     }
+
     private fun saveCroppedImage() {
         val croppedBitmap = binding.cropView.getCroppedBitmap()
         croppedBitmap?.let { bitmap ->
@@ -318,7 +325,6 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
             Toast.makeText(this, "Operation cancelled or failed", Toast.LENGTH_SHORT).show()
         }
     }
-
 
     private fun cropImage(sourceUri: Uri) {
         Log.d("MainActivity", "Starting crop with sourceUri: $sourceUri")
@@ -453,6 +459,7 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
         }
     }
 
+
     //REMEMBER TO FIX
     private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
@@ -583,6 +590,7 @@ class MainActivity<IOException : Any> : AppCompatActivity() {
             Toast.makeText(this, "Excel file saved: ${file.absolutePath}", Toast.LENGTH_LONG).show()
         }
     }
+
 
     interface TableOCRInterface {
         @POST("api/predict/ocr_table_parse")
